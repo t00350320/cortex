@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
@@ -15,20 +16,25 @@ import (
 
 func copyFn(l labels.Labels) labels.Labels { return l }
 
+func FromLabelAdaptersToLabels(ls []labels.Label) labels.Labels {
+	return *(*labels.Labels)(unsafe.Pointer(&ls))
+}
+
 func TestActiveSeries_UpdateSeries(t *testing.T) {
 	ls1 := []labels.Label{{Name: "a", Value: "1"}}
 	ls2 := []labels.Label{{Name: "a", Value: "2"}}
 
 	c := NewActiveSeries()
 	assert.Equal(t, 0, c.Active())
-
-	c.UpdateSeries(ls1, time.Now(), copyFn)
+	labels1Hash := FromLabelAdaptersToLabels(ls1).Hash()
+	labels2Hash := FromLabelAdaptersToLabels(ls2).Hash()
+	c.UpdateSeries(ls1, labels1Hash, time.Now(), copyFn)
 	assert.Equal(t, 1, c.Active())
 
-	c.UpdateSeries(ls1, time.Now(), copyFn)
+	c.UpdateSeries(ls1, labels1Hash, time.Now(), copyFn)
 	assert.Equal(t, 1, c.Active())
 
-	c.UpdateSeries(ls2, time.Now(), copyFn)
+	c.UpdateSeries(ls2, labels2Hash, time.Now(), copyFn)
 	assert.Equal(t, 2, c.Active())
 }
 
@@ -46,7 +52,7 @@ func TestActiveSeries_Purge(t *testing.T) {
 		c := NewActiveSeries()
 
 		for i := 0; i < len(series); i++ {
-			c.UpdateSeries(series[i], time.Unix(int64(i), 0), copyFn)
+			c.UpdateSeries(series[i], FromLabelAdaptersToLabels(series[i]).Hash(), time.Unix(int64(i), 0), copyFn)
 		}
 
 		c.Purge(time.Unix(int64(ttl+1), 0))
@@ -60,26 +66,27 @@ func TestActiveSeries_Purge(t *testing.T) {
 
 func TestActiveSeries_PurgeOpt(t *testing.T) {
 	metric := labels.NewBuilder(labels.FromStrings("__name__", "logs"))
-	ls1 := metric.Set("_", "ypfajYg2lsv").Labels(nil)
-	ls2 := metric.Set("_", "KiqbryhzUpn").Labels(nil)
-
+	ls1 := metric.Set("_", "ypfajYg2lsv").Labels()
+	ls2 := metric.Set("_", "KiqbryhzUpn").Labels()
+	labels1Hash := FromLabelAdaptersToLabels(ls1).Hash()
+	labels2Hash := FromLabelAdaptersToLabels(ls2).Hash()
 	c := NewActiveSeries()
 
 	now := time.Now()
-	c.UpdateSeries(ls1, now.Add(-2*time.Minute), copyFn)
-	c.UpdateSeries(ls2, now, copyFn)
+	c.UpdateSeries(ls1, labels1Hash, now.Add(-2*time.Minute), copyFn)
+	c.UpdateSeries(ls2, labels2Hash, now, copyFn)
 	c.Purge(now)
 
 	assert.Equal(t, 1, c.Active())
 
-	c.UpdateSeries(ls1, now.Add(-1*time.Minute), copyFn)
-	c.UpdateSeries(ls2, now, copyFn)
+	c.UpdateSeries(ls1, labels1Hash, now.Add(-1*time.Minute), copyFn)
+	c.UpdateSeries(ls2, labels2Hash, now, copyFn)
 	c.Purge(now)
 
 	assert.Equal(t, 1, c.Active())
 
 	// This will *not* update the series, since there is already newer timestamp.
-	c.UpdateSeries(ls2, now.Add(-1*time.Minute), copyFn)
+	c.UpdateSeries(ls2, labels2Hash, now.Add(-1*time.Minute), copyFn)
 	c.Purge(now)
 
 	assert.Equal(t, 1, c.Active())
@@ -116,7 +123,7 @@ func benchmarkActiveSeriesConcurrencySingleSeries(b *testing.B, goroutines int) 
 
 			for ix := 0; ix < max; ix++ {
 				now = now.Add(time.Duration(ix) * time.Millisecond)
-				c.UpdateSeries(series, now, copyFn)
+				c.UpdateSeries(series, FromLabelAdaptersToLabels(series).Hash(), now, copyFn)
 			}
 		}()
 	}
@@ -145,7 +152,7 @@ func BenchmarkActiveSeries_UpdateSeries(b *testing.B) {
 
 	b.ResetTimer()
 	for ix := 0; ix < b.N; ix++ {
-		c.UpdateSeries(series[ix], time.Unix(0, now+int64(ix)), copyFn)
+		c.UpdateSeries(series[ix], FromLabelAdaptersToLabels(series[ix]).Hash(), time.Unix(0, now+int64(ix)), copyFn)
 	}
 }
 
@@ -175,9 +182,9 @@ func benchmarkPurge(b *testing.B, twice bool) {
 		// Prepare series
 		for ix, s := range series {
 			if ix < numExpiresSeries {
-				c.UpdateSeries(s, now.Add(-time.Minute), copyFn)
+				c.UpdateSeries(s, FromLabelAdaptersToLabels(s).Hash(), now.Add(-time.Minute), copyFn)
 			} else {
-				c.UpdateSeries(s, now, copyFn)
+				c.UpdateSeries(s, FromLabelAdaptersToLabels(s).Hash(), now, copyFn)
 			}
 		}
 
