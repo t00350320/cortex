@@ -43,6 +43,7 @@
 * [CHANGE] Removes `-ingester.stream-chunks-when-using-blocks` experimental flag and stream chunks by default when `querier.ingester-streaming` is enabled. #4864
 * [CHANGE] Compactor: Added `cortex_compactor_runs_interrupted_total` to separate compaction interruptions from failures
 * [CHANGE] Enable PromQL `@` modifier, negative offset always. #4927
+* [CHANGE] Store-gateway: Add user label to `cortex_bucket_store_blocks_loaded` metric. #4918
 * [ENHANCEMENT] AlertManager: Retrying AlertManager Get Requests (Get Alertmanager status, Get Alertmanager Receivers) on next replica on error #4840
 * [ENHANCEMENT] Querier/Ruler: Retry store-gateway in case of unexpected failure, instead of failing the query. #4532 #4839
 * [ENHANCEMENT] Ring: DoBatch prioritize 4xx errors when failing. #4783
@@ -70,6 +71,7 @@
 * [BUGFIX] Respecting `-tracing.otel.sample-ratio` configuration when enabling OpenTelemetry tracing with X-ray. #4862
 * [BUGFIX] QueryFrontend: fixed query_range requests when query has `start` equals to `end`. #4877
 * [BUGFIX] AlertManager: fixed issue introduced by #4495 where templates files were being deleted when using alertmanager local store. #4890
+* [BUGFIX] Ingester: fixed incorrect logging at the start of ingester block shipping logic. #4934
 
 ## 1.13.0 2022-07-14
 
